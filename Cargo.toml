@@ -1,6 +1,6 @@
 [package]
 name = "rasterlottie"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "Pure Rust, headless Lottie rasterizer for deterministic server-side rendering"
 license = "MIT OR Apache-2.0"
