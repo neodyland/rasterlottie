@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and the project follows Semantic Versioning.
 
+## [0.2.0]
+
+### Added
+
+- Optional `dotlottie` feature for loading `.lottie` archives from packaged ZIP containers.
+- `Animation::from_dotlottie_bytes` for parsing packaged archives through the public API.
+- Manifest-aware animation selection for `.lottie` archives, including explicit initial animation IDs and fallback to the first declared animation.
+- Embedded archive image extraction for `.lottie` inputs when the `images` feature is enabled.
+- `.lottie` input support in the `rasterlottie_cli` and `benchmark_render` examples.
+
+### Changed
+
+- Expanded the README usage examples to document `.lottie` workflows and feature-gated loading.
+- Added regression coverage for `.lottie` parsing and packaged image loading.
+
+### Fixed
+
+- Corrected GIF frame timing quantization so requested output FPS is preserved more accurately within GIF centisecond delay limits.
+- Added regression coverage for non-integer centisecond GIF frame delays.
+
 ## [0.1.1]
 
 ### Added
