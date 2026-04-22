@@ -1,0 +1,139 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing Git tag to release, for example v0.1.1"
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_TERM_COLOR: always
+      RUSTFLAGS: -Zthreads=8 -C link-arg=-fuse-ld=mold
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag and version
+        id: release-meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+
+          if [[ -z "${tag}" ]]; then
+            echo "Tag is empty." >&2
+            exit 1
+          fi
+
+          version="${tag#v}"
+          if [[ "${version}" == "${tag}" ]]; then
+            echo "Expected a tag that starts with 'v', got '${tag}'." >&2
+            exit 1
+          fi
+
+          git rev-parse "refs/tags/${tag}" >/dev/null
+
+          {
+            echo "tag=${tag}"
+            echo "version=${version}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Extract release notes from changelog
+        id: notes
+        shell: pwsh
+        run: |
+          $env:RELEASE_VERSION = "${{ steps.release-meta.outputs.version }}"
+          $env:RELEASE_NOTES_PATH = "${{ runner.temp }}/release-notes.md"
+          $script = @'
+          const fs = require("node:fs");
+          const version = process.env.RELEASE_VERSION;
+          const changelog = fs.readFileSync("CHANGELOG.md", "utf8").replace(/\r\n/g, "\n");
+          const header = "## [" + version + "]";
+          const start = changelog.indexOf(header);
+          if (start === -1) {
+            console.error("Could not find release notes for version " + version + " in CHANGELOG.md.");
+            process.exit(1);
+          }
+          const afterHeader = changelog.indexOf("\n", start);
+          const nextHeader = changelog.indexOf("\n## [", afterHeader + 1);
+          const section = changelog.slice(afterHeader + 1, nextHeader === -1 ? changelog.length : nextHeader).trim();
+          if (!section) {
+            console.error("Release notes section for version " + version + " is empty.");
+            process.exit(1);
+          }
+          fs.writeFileSync(process.env.RELEASE_NOTES_PATH, section + "\n");
+          '@
+          node -e $script
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "notes_path=$env:RELEASE_NOTES_PATH"
+
+      - name: Install mold
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mold
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Configure Cargo jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "CARGO_BUILD_JOBS=$(nproc)" >> "$GITHUB_ENV"
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-ubuntu-24.04-nightly
+          cache-on-failure: true
+
+      - name: cargo package
+        run: cargo package --locked
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${{ steps.release-meta.outputs.tag }}"
+          version="${{ steps.release-meta.outputs.version }}"
+          notes_path="${{ steps.notes.outputs.notes_path }}"
+          crate_file="target/package/rasterlottie-${version}.crate"
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release edit "${tag}" \
+              --title "${tag}" \
+              --notes-file "${notes_path}"
+            gh release upload "${tag}" "${crate_file}" --clobber
+          else
+            gh release create "${tag}" \
+              "${crate_file}" \
+              --title "${tag}" \
+              --notes-file "${notes_path}" \
+              --verify-tag
+          fi
