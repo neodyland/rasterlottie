@@ -4,6 +4,8 @@
 #[macro_use]
 mod trace_macros;
 
+#[cfg(feature = "dotlottie")]
+mod dotlottie;
 mod effects;
 mod error;
 mod expression;

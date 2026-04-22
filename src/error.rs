@@ -1,4 +1,6 @@
 use thiserror::Error;
+#[cfg(feature = "dotlottie")]
+use zip::result::ZipError;
 
 use crate::support::SupportReport;
 
@@ -9,6 +11,19 @@ pub enum RasterlottieError {
     /// The input JSON could not be deserialized into the library model.
     #[error("failed to parse Lottie JSON: {0}")]
     Parse(#[from] serde_json::Error),
+
+    /// The input `.lottie` archive could not be opened as a ZIP container.
+    #[cfg(feature = "dotlottie")]
+    #[error("failed to read .lottie archive: {0}")]
+    DotLottieArchive(#[from] ZipError),
+
+    /// The input `.lottie` archive is structurally invalid for this loader.
+    #[cfg(feature = "dotlottie")]
+    #[error("invalid .lottie archive: {detail}")]
+    InvalidDotLottie {
+        /// Human-readable validation or decode failure reason.
+        detail: String,
+    },
 
     /// GIF encoding failed after raster frames had been rendered.
     #[cfg(feature = "gif")]

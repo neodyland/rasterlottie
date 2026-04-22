@@ -31,6 +31,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["gif", "images", "text"]
+dotlottie = ["dep:zip"]
 gif = ["dep:gif"]
 images = ["dep:base64", "dep:image"]
 text = ["dep:unicode-segmentation"]
@@ -47,6 +48,7 @@ thiserror = "2"
 tiny-skia = "0.12"
 tracing = { version = "0.1", optional = true }
 unicode-segmentation = { version = "1", optional = true }
+zip = { version = "8", default-features = false, features = ["deflate"], optional = true }
 
 [dev-dependencies]
 base64 = "0.22"

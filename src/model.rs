@@ -1,5 +1,7 @@
 use serde_json::Value;
 
+#[cfg(feature = "dotlottie")]
+use super::dotlottie::load_animation_from_dotlottie_bytes;
 use super::{
     RasterlottieError,
     model_parse::{color_components_to_rgba, f32_unit_to_u8, parse_bezier_path},
@@ -14,6 +16,21 @@ impl Animation {
     /// Returns an error when `json` is not valid Lottie JSON for this model.
     pub fn from_json_str(json: &str) -> Result<Self, RasterlottieError> {
         Ok(serde_json::from_str(json)?)
+    }
+
+    /// Parses the primary animation from a `.lottie` archive.
+    ///
+    /// The loader prefers the manifest's explicitly selected animation and
+    /// otherwise falls back to the first listed animation entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `dotlottie` is not a valid `.lottie` archive or
+    /// when the selected embedded Lottie JSON cannot be parsed.
+    #[cfg(feature = "dotlottie")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "dotlottie")))]
+    pub fn from_dotlottie_bytes(dotlottie: &[u8]) -> Result<Self, RasterlottieError> {
+        load_animation_from_dotlottie_bytes(dotlottie)
     }
 
     /// Returns the duration in frames.

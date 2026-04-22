@@ -15,16 +15,23 @@ frames. GIF export is available through the default `gif` feature.
 
 ```toml
 [dependencies]
-rasterlottie = "0.1.1"
+rasterlottie = "<ver>"
 ```
 
 The default feature set enables `gif`, `images`, and `text`.
+
+Enable the optional `dotlottie` feature when you need to load `.lottie` archives:
+
+```toml
+[dependencies]
+rasterlottie = { version = "<ver>", features = ["dotlottie"] }
+```
 
 If you only need frame rendering without GIF export, image assets, or text layers:
 
 ```toml
 [dependencies]
-rasterlottie = { version = "0.1.1", default-features = false }
+rasterlottie = { version = "<ver>", default-features = false }
 ```
 
 ## Basic usage
@@ -49,6 +56,22 @@ assert_eq!((frame.width, frame.height), (64, 64));
 # Ok::<(), rasterlottie::RasterlottieError>(())
 ```
 
+With `dotlottie` enabled, you can also load a packaged archive:
+
+```rust,no_run
+# #[cfg(feature = "dotlottie")]
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use rasterlottie::Animation;
+
+let dotlottie = std::fs::read("example.lottie")?;
+let animation = Animation::from_dotlottie_bytes(&dotlottie)?;
+# let _animation = animation;
+# Ok(())
+# }
+# #[cfg(not(feature = "dotlottie"))]
+# fn main() {}
+```
+
 ## Current status
 
 - Parses a small but useful Lottie subset
@@ -64,6 +87,7 @@ assert_eq!((frame.width, frame.height), (64, 64));
 - Supports alpha and luminance track mattes, including inverted modes
 - Supports embedded data URL image assets and image layers when the default `images` feature is enabled
 - Supports external image assets through an explicit resolver API when the default `images` feature is enabled
+- Supports loading `.lottie` archives when the optional `dotlottie` feature is enabled
 - Supports glyph-backed text layers with stepped document keyframes when the default `text` feature is enabled
 - Ignores controller-style effects on null layers
 - Accepts single-source merge paths that collapse to a no-op
@@ -111,7 +135,12 @@ This project starts by making that contract explicit first.
 - `cargo run --example rasterlottie_cli -- render-gif <input.json> <output.gif>` renders a GIF with optional `--fps`, `--duration`, and `--quantizer-speed` when the default `gif` feature is enabled
 - `cargo run --example rasterlottie_cli -- render-png <input.json> <output.png>` renders a PNG with optional `--frame`, `--background`, and `--scale`
 - `cargo run --example rasterlottie_cli -- render-mp4 <input.json> <output.mp4>` renders an MP4 with optional `--fps`, `--duration`, `--background`, `--scale`, `--crf`, `--preset`, `--codec`, `--pix-fmt`, and `--lossless`
+- `cargo run --example rasterlottie_cli --features dotlottie -- analyze <input.lottie>` loads a packaged archive and prints the selected animation's support report
+- `cargo run --example rasterlottie_cli --features dotlottie -- render-gif <input.lottie> <output.gif>` renders a GIF from a packaged archive
+- `cargo run --example rasterlottie_cli --features dotlottie -- render-png <input.lottie> <output.png>` renders a PNG from a packaged archive
+- `cargo run --example rasterlottie_cli --features dotlottie -- render-mp4 <input.lottie> <output.mp4>` renders an MP4 from a packaged archive
 - `cargo run --example benchmark_render -- <input.json> --mode gif --json` benchmarks raw frame rendering with the same frame sampling used by `render-gif`
+- `cargo run --example benchmark_render --features dotlottie -- <input.lottie> --mode gif --json` benchmarks packaged archives with the same frame sampling used by `render-gif`
 - `tools/bench/compare-with-rlottie-docker.ps1 -InputJson work\input.json -Mode both` compares `rasterlottie` raw render timing against `rlottie` inside Docker
 
 ## Tracing

@@ -5,7 +5,7 @@ use std::{
     collections::BTreeMap,
     env, fs,
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, Command as ProcessCommand, Output, Stdio, exit},
     str,
 };
@@ -139,18 +139,18 @@ fn main() {
     init_tracing_if_requested();
 
     let app = App::new("rasterlottie-cli")
-        .description("Analyze or render Lottie JSON with rasterlottie.")
+        .description("Analyze or render Lottie JSON or .lottie archives with rasterlottie.")
         .command(
             Command::new("analyze")
-                .description("Load a Lottie JSON file and print the support report.")
-                .usage("cargo run --example rasterlottie_cli -- analyze <input.json>")
+                .description("Load a Lottie JSON or .lottie file and print the support report.")
+                .usage("cargo run --example rasterlottie_cli -- analyze <input.json|input.lottie>")
                 .action_with_result(analyze_command),
         )
         .command(
             Command::new("render-png")
-                .description("Render a single Lottie frame into a PNG.")
+                .description("Render a single Lottie JSON or .lottie frame into a PNG.")
                 .usage(
-                    "cargo run --example rasterlottie_cli -- render-png <input.json> <output.png> [--frame <float>] [--background <hex>] [--scale <float>]",
+                    "cargo run --example rasterlottie_cli -- render-png <input.json|input.lottie> <output.png> [--frame <float>] [--background <hex>] [--scale <float>]",
                 )
                 .flag(
                     Flag::new("frame", FlagType::Float)
@@ -171,9 +171,9 @@ fn main() {
         )
         .command(
             Command::new("render-mp4")
-                .description("Render a Lottie JSON file into an MP4 with ffmpeg.")
+                .description("Render a Lottie JSON or .lottie file into an MP4 with ffmpeg.")
                 .usage(
-                    "cargo run --example rasterlottie_cli -- render-mp4 <input.json> <output.mp4> [--fps <float>] [--duration <float>] [--background <hex>] [--scale <float>] [--crf <int>] [--preset <name>] [--codec <name>] [--pix-fmt <name>] [--lossless]",
+                    "cargo run --example rasterlottie_cli -- render-mp4 <input.json|input.lottie> <output.mp4> [--fps <float>] [--duration <float>] [--background <hex>] [--scale <float>] [--crf <int>] [--preset <name>] [--codec <name>] [--pix-fmt <name>] [--lossless]",
                 )
                 .flag(
                     Flag::new("fps", FlagType::Float)
@@ -229,9 +229,9 @@ fn main() {
 #[cfg(feature = "gif")]
 fn render_gif_subcommand() -> Command {
     Command::new("render-gif")
-        .description("Render a Lottie JSON file into a GIF.")
+        .description("Render a Lottie JSON or .lottie file into a GIF.")
         .usage(
-            "cargo run --example rasterlottie_cli -- render-gif <input.json> <output.gif> [--fps <float>] [--duration <float>] [--quantizer-speed <int>]",
+            "cargo run --example rasterlottie_cli -- render-gif <input.json|input.lottie> <output.gif> [--fps <float>] [--duration <float>] [--quantizer-speed <int>]",
         )
         .flag(
             Flag::new("fps", FlagType::Float)
@@ -282,7 +282,7 @@ fn init_tracing_if_requested() {
 }
 
 fn analyze_command(context: &Context) -> ActionResult {
-    let input = required_path_arg(context, 0, "input JSON path")?;
+    let input = required_path_arg(context, 0, "input animation path")?;
     let animation = load_animation(&input)?;
     let report = analyze_animation(&animation);
     let stats = collect_animation_stats(&animation);
@@ -342,7 +342,7 @@ fn render_gif_command(context: &Context) -> ActionResult {
     #[cfg(feature = "tracing")]
     let _render_gif_command_span = tracing::debug_span!("render_gif_command").entered();
 
-    let input = required_path_arg(context, 0, "input JSON path")?;
+    let input = required_path_arg(context, 0, "input animation path")?;
     let output = required_path_arg(context, 1, "output GIF path")?;
     let (animation, fps, duration, quantizer_speed) = {
         #[cfg(feature = "tracing")]
@@ -389,7 +389,7 @@ fn render_gif_command(context: &Context) -> ActionResult {
 }
 
 fn render_png_command(context: &Context) -> ActionResult {
-    let input = required_path_arg(context, 0, "input JSON path")?;
+    let input = required_path_arg(context, 0, "input animation path")?;
     let output = required_path_arg(context, 1, "output PNG path")?;
     let animation = load_animation(&input)?;
     let frame = context.float_flag("frame").unwrap_or(0.0) as f32;
@@ -421,7 +421,7 @@ fn render_mp4_command(context: &Context) -> ActionResult {
     #[cfg(feature = "tracing")]
     let _render_mp4_command_span = tracing::debug_span!("render_mp4_command").entered();
 
-    let input = required_path_arg(context, 0, "input JSON path")?;
+    let input = required_path_arg(context, 0, "input animation path")?;
     let output = required_path_arg(context, 1, "output MP4 path")?;
     let (prepared, timing, render_config, encode_options) = {
         #[cfg(feature = "tracing")]
@@ -563,9 +563,32 @@ fn required_path_arg(context: &Context, index: usize, label: &str) -> Result<Pat
 }
 
 fn load_animation(path: &PathBuf) -> Result<Animation, ActionError> {
+    if path_uses_dotlottie(path) {
+        #[cfg(feature = "dotlottie")]
+        {
+            let bytes = fs::read(path).map_err(|error| {
+                to_action_error(&format!("failed to read {}: {error}", path.display()))
+            })?;
+            return Animation::from_dotlottie_bytes(&bytes)
+                .map_err(|error| to_action_error(&error));
+        }
+        #[cfg(not(feature = "dotlottie"))]
+        {
+            return Err(to_action_error(
+                "`.lottie` input requires building this example with `--features dotlottie`",
+            ));
+        }
+    }
+
     let json = fs::read_to_string(path)
         .map_err(|error| to_action_error(&format!("failed to read {}: {error}", path.display())))?;
     Animation::from_json_str(&json).map_err(|error| to_action_error(&error))
+}
+
+fn path_uses_dotlottie(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("lottie"))
 }
 
 fn wait_for_ffmpeg_output(child: Child) -> Result<Output, ActionError> {
@@ -876,7 +899,7 @@ fn format_counts(counts: &BTreeMap<String, usize>) -> String {
 mod tests {
     use rasterlottie::Rgba8;
 
-    use super::{parse_rgba8, to_action_error};
+    use super::{parse_rgba8, path_uses_dotlottie, to_action_error};
 
     #[test]
     fn parse_rgba8_accepts_rgb_hex() {
@@ -910,5 +933,12 @@ mod tests {
             error.message,
             to_action_error("invalid background `12345`: expected RRGGBB or RRGGBBAA").message
         );
+    }
+
+    #[test]
+    fn path_uses_dotlottie_matches_case_insensitive_extension() {
+        assert!(path_uses_dotlottie(std::path::Path::new("demo.lottie")));
+        assert!(path_uses_dotlottie(std::path::Path::new("demo.LOTTIE")));
+        assert!(!path_uses_dotlottie(std::path::Path::new("demo.json")));
     }
 }

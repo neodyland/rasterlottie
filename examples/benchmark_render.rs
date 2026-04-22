@@ -1,7 +1,12 @@
 //! Benchmark helper for comparing rasterlottie render throughput.
 #![allow(clippy::print_stdout, clippy::print_stderr, reason = "this is example")]
 
-use std::{env, fs, path::PathBuf, process, time::Instant};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process,
+    time::Instant,
+};
 
 use rasterlottie::{Animation, Pixmap, RenderConfig, Renderer, Rgba8};
 use serde::Serialize;
@@ -125,7 +130,7 @@ impl BenchmarkOptions {
                 value => {
                     if input.is_some() {
                         return Err(format!(
-                            "unexpected extra positional argument `{value}`. only the input JSON path is supported"
+                            "unexpected extra positional argument `{value}`. only one input animation path is supported"
                         ));
                     }
                     input = Some(PathBuf::from(value));
@@ -134,7 +139,7 @@ impl BenchmarkOptions {
         }
 
         let input = input.ok_or_else(|| {
-            "missing input JSON path. run with `--help` for usage information".to_string()
+            "missing input animation path. run with `--help` for usage information".to_string()
         })?;
         if !max_fps.is_finite() || max_fps <= 0.0 {
             return Err(format!(
@@ -246,10 +251,7 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let options = BenchmarkOptions::parse(env::args().skip(1))?;
-    let json = fs::read_to_string(&options.input)
-        .map_err(|error| format!("failed to read {}: {error}", options.input.display()))?;
-    let animation = Animation::from_json_str(&json)
-        .map_err(|error| format!("failed to parse {}: {error}", options.input.display()))?;
+    let animation = load_animation(&options.input)?;
     let prepared = Renderer::default()
         .prepare(&animation)
         .map_err(|error| format!("failed to prepare animation: {error}"))?;
@@ -344,10 +346,40 @@ fn parse_rgba8(value: &str) -> Result<Rgba8, String> {
 fn print_usage() {
     println!("Usage:");
     println!(
-        "  cargo run --example benchmark_render -- <input.json> [--mode full|gif] [--max-fps <float>] [--scale <float>] [--background <hex>] [--json]"
+        "  cargo run --example benchmark_render -- <input.json|input.lottie> [--mode full|gif] [--max-fps <float>] [--scale <float>] [--background <hex>] [--json]"
     );
     println!();
     println!("Modes:");
     println!("  full  Render every source frame between in_point and out_point.");
     println!("  gif   Render the sampled frame sequence used by render-gif timing.");
+}
+
+fn load_animation(path: &Path) -> Result<Animation, String> {
+    if path_uses_dotlottie(path) {
+        #[cfg(feature = "dotlottie")]
+        {
+            let bytes = fs::read(path)
+                .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+            return Animation::from_dotlottie_bytes(&bytes)
+                .map_err(|error| format!("failed to parse {}: {error}", path.display()));
+        }
+        #[cfg(not(feature = "dotlottie"))]
+        {
+            return Err(
+                "`.lottie` input requires building benchmark_render with `--features dotlottie`"
+                    .to_string(),
+            );
+        }
+    }
+
+    let json = fs::read_to_string(path)
+        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    Animation::from_json_str(&json)
+        .map_err(|error| format!("failed to parse {}: {error}", path.display()))
+}
+
+fn path_uses_dotlottie(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("lottie"))
 }
