@@ -1,5 +1,9 @@
 # rasterlottie
 
+[![Crates.io](https://img.shields.io/crates/v/rasterlottie.svg)](https://crates.io/crates/rasterlottie)
+[![Docs.rs](https://docs.rs/rasterlottie/badge.svg)](https://docs.rs/rasterlottie)
+[![CI](https://github.com/neodyland/rasterlottie/actions/workflows/ci.yml/badge.svg)](https://github.com/neodyland/rasterlottie/actions/workflows/ci.yml)
+
 `rasterlottie` is a pure Rust, headless Lottie rasterizer focused on a validated target corpus.
 
 The immediate target is not full Lottie parity. The target is a deterministic,
@@ -11,7 +15,7 @@ frames. GIF export is available through the default `gif` feature.
 
 ```toml
 [dependencies]
-rasterlottie = "0.1.0"
+rasterlottie = "0.1.1"
 ```
 
 The default feature set enables `gif`, `images`, and `text`.
@@ -20,7 +24,7 @@ If you only need frame rendering without GIF export, image assets, or text layer
 
 ```toml
 [dependencies]
-rasterlottie = { version = "0.1.0", default-features = false }
+rasterlottie = { version = "0.1.1", default-features = false }
 ```
 
 ## Basic usage
