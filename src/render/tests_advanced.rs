@@ -592,12 +592,75 @@ fn renderer_quantizes_gif_frame_rate_to_centiseconds() {
 
     let frames = decode_gif_rgba_frames(&bytes);
 
-    assert_eq!(frames.len(), 50);
-    assert!(frames.iter().all(|frame| frame.delay == 2));
+    assert_eq!(frames.len(), 60);
+    assert!(frames.iter().all(|frame| matches!(frame.delay, 1 | 2)));
+    assert_eq!(
+        frames
+            .iter()
+            .map(|frame| u32::from(frame.delay))
+            .sum::<u32>(),
+        100
+    );
     assert_eq!(pixel_at(&frames[0].raster, 4, 8), [255, 0, 0, 255]);
     assert_eq!(
         pixel_at(&frames[frames.len() - 1].raster, 12, 8),
         [255, 0, 0, 255]
+    );
+}
+
+#[cfg(feature = "gif")]
+#[test]
+fn renderer_distributes_gif_delays_for_non_integer_centisecond_frame_rate() {
+    let animation = Animation::from_json_str(
+        r#"{
+                "v":"5.7.6",
+                "fr":60,
+                "ip":0,
+                "op":60,
+                "w":16,
+                "h":16,
+                "layers":[
+                    {
+                        "nm":"Shape Layer 1",
+                        "ind":1,
+                        "ty":4,
+                        "shapes":[
+                            {
+                                "ty":"gr",
+                                "it":[
+                                    {"ty":"rc","p":{"a":1,"k":[{"t":0,"s":[4,8],"e":[12,8],"i":{"x":[1,1],"y":[1,1]},"o":{"x":[0,0],"y":[0,0]}},{"t":59,"s":[12,8]}]},"s":{"a":0,"k":[4,4]},"r":{"a":0,"k":0}},
+                                    {"ty":"fl","c":{"a":0,"k":[1,0,0,1]},"o":{"a":0,"k":100}},
+                                    {"ty":"tr","a":{"a":0,"k":[0,0]},"p":{"a":0,"k":[0,0]},"s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}}
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }"#,
+    )
+    .unwrap();
+
+    let bytes = Renderer::default()
+        .render_gif(
+            &animation,
+            GifRenderConfig {
+                max_fps: 15.0,
+                max_duration_seconds: 1.0,
+                ..GifRenderConfig::default()
+            },
+        )
+        .unwrap();
+
+    let frames = decode_gif_rgba_frames(&bytes);
+    let delays: Vec<u16> = frames.iter().map(|frame| frame.delay).collect();
+
+    assert_eq!(frames.len(), 15);
+    assert!(delays.iter().all(|delay| matches!(delay, 6 | 7)));
+    assert!(delays.contains(&6));
+    assert!(delays.contains(&7));
+    assert_eq!(
+        delays.iter().map(|delay| u32::from(*delay)).sum::<u32>(),
+        100
     );
 }
 

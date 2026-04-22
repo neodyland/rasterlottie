@@ -278,14 +278,12 @@ impl Renderer {
 
         let source_fps = animation.frame_rate.max(1.0);
         let requested_fps = source_fps.min(config.max_fps.max(1.0));
-        let frame_delay = ((100.0 / requested_fps).round() as u16).max(1);
-        let actual_output_fps = 100.0 / frame_delay as f32;
-        let max_output_frames = (actual_output_fps * config.max_duration_seconds.max(0.1))
-            .floor()
-            .max(1.0) as usize;
         let start_frame = animation.in_point.floor();
         let end_frame = animation.out_point.ceil().max(start_frame + 1.0);
-        let source_frame_step = source_fps / actual_output_fps;
+        let output_duration_seconds =
+            ((end_frame - start_frame) / source_fps).min(config.max_duration_seconds.max(0.1));
+        let max_output_frames = (requested_fps * output_duration_seconds).floor().max(1.0) as usize;
+        let source_frame_step = source_fps / requested_fps;
 
         let mut bytes = Vec::new();
         let mut encoder = {
@@ -294,14 +292,14 @@ impl Renderer {
                 "gif_encoder_init",
                 width = width,
                 height = height,
-                frame_delay = frame_delay,
                 requested_fps = requested_fps,
-                actual_output_fps = actual_output_fps
+                output_duration_seconds = output_duration_seconds
             );
             GifEncoder::new(&mut bytes, width, height, &[])?
         };
         encoder.set_repeat(GifRepeat::Infinite)?;
         let mut scratch = new_pixmap(output_width, output_height)?;
+        let mut previous_deadline_centiseconds = 0u32;
 
         for rendered in 0..max_output_frames {
             let source_frame = (rendered as f32).mul_add(source_frame_step, start_frame);
@@ -337,6 +335,14 @@ impl Renderer {
                     config.color_quantizer_speed,
                 )
             };
+            let next_deadline_centiseconds =
+                ((((rendered + 1) as f64) * 100.0) / f64::from(requested_fps)).round() as u32;
+            let next_deadline_centiseconds =
+                next_deadline_centiseconds.max(previous_deadline_centiseconds + 1);
+            let frame_delay =
+                u16::try_from(next_deadline_centiseconds - previous_deadline_centiseconds)
+                    .unwrap_or(u16::MAX);
+            previous_deadline_centiseconds = next_deadline_centiseconds;
             gif_frame.delay = frame_delay;
             gif_frame.dispose = DisposalMethod::Background;
             {
