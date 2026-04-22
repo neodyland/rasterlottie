@@ -1,6 +1,6 @@
 [package]
 name = "rasterlottie"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Pure Rust, headless Lottie rasterizer for deterministic server-side rendering"
 license = "MIT OR Apache-2.0"
@@ -12,6 +12,7 @@ repository = "https://github.com/neodyland/rasterlottie"
 keywords = ["lottie", "renderer", "rasterizer", "gif", "animation"]
 categories = ["graphics", "multimedia::images"]
 include = [
+    "/CHANGELOG.md",
     "/Cargo.toml",
     "/LICENSE-APACHE",
     "/LICENSE-MIT",
