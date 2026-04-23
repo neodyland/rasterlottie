@@ -1,4 +1,4 @@
-use std::{ptr, rc::Rc};
+use std::{ptr, sync::Arc};
 
 use tiny_skia::{Pixmap, Transform as PixmapTransform};
 
@@ -21,7 +21,7 @@ pub(super) fn lookup_image_asset<'a>(
     image_assets: &'a ImageAssetStore,
     animation: &'a Animation,
     layer: &Layer,
-) -> Result<Option<Rc<Pixmap>>, RasterlottieError> {
+) -> Result<Option<Arc<Pixmap>>, RasterlottieError> {
     let Some(ref_id) = layer.ref_id.as_deref() else {
         return Ok(None);
     };

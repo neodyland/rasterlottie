@@ -2,7 +2,7 @@
 use std::cell::RefCell;
 #[cfg(not(feature = "images"))]
 use std::mem::size_of_val;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[cfg(feature = "images")]
 use base64::{Engine, engine::general_purpose};
@@ -35,7 +35,7 @@ pub(super) struct ImageAssetStore;
 struct LazyImageAssetEntry {
     asset_index: usize,
     source: EncodedImageSource,
-    decoded: RefCell<Option<Rc<Pixmap>>>,
+    decoded: RefCell<Option<Arc<Pixmap>>>,
 }
 
 #[cfg(feature = "images")]
@@ -45,13 +45,47 @@ enum EncodedImageSource {
     EncodedBytes(Vec<u8>),
 }
 
+#[cfg(feature = "images")]
+impl Clone for EncodedImageSource {
+    fn clone(&self) -> Self {
+        match self {
+            Self::EmbeddedDataUrl => Self::EmbeddedDataUrl,
+            Self::EncodedBytes(bytes) => Self::EncodedBytes(bytes.clone()),
+        }
+    }
+}
+
 impl ImageAssetStore {
+    #[cfg(feature = "images")]
+    pub(super) fn clone_for_worker(&self) -> Self {
+        let mut entries = FxHashMap::default();
+        entries.reserve(self.entries.len());
+        for (id, entry) in &self.entries {
+            entries.insert(
+                id.clone(),
+                LazyImageAssetEntry {
+                    asset_index: entry.asset_index,
+                    source: entry.source.clone(),
+                    decoded: RefCell::default(),
+                },
+            );
+        }
+
+        Self { entries }
+    }
+
+    #[cfg(not(feature = "images"))]
+    pub(super) fn clone_for_worker(&self) -> Self {
+        let _store_size = size_of_val(self);
+        Self
+    }
+
     #[cfg(feature = "images")]
     pub(super) fn get(
         &self,
         animation: &Animation,
         ref_id: &str,
-    ) -> Result<Option<Rc<Pixmap>>, RasterlottieError> {
+    ) -> Result<Option<Arc<Pixmap>>, RasterlottieError> {
         let Some(entry) = self.entries.get(ref_id) else {
             return Ok(None);
         };
@@ -79,8 +113,8 @@ impl ImageAssetStore {
             }
             EncodedImageSource::EncodedBytes(bytes) => bytes.clone(),
         };
-        let decoded = Rc::new(decode_image_bytes(asset, &bytes)?);
-        *entry.decoded.borrow_mut() = Some(Rc::clone(&decoded));
+        let decoded = Arc::new(decode_image_bytes(asset, &bytes)?);
+        *entry.decoded.borrow_mut() = Some(Arc::clone(&decoded));
         Ok(Some(decoded))
     }
 
@@ -89,7 +123,7 @@ impl ImageAssetStore {
         &self,
         _animation: &Animation,
         ref_id: &str,
-    ) -> Result<Option<Rc<Pixmap>>, RasterlottieError> {
+    ) -> Result<Option<Arc<Pixmap>>, RasterlottieError> {
         let _store_size = size_of_val(self);
         if ref_id.is_empty() {
             Ok(None)

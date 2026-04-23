@@ -30,6 +30,13 @@ pub enum RasterlottieError {
     #[error("failed to encode GIF: {0}")]
     GifEncoding(#[from] gif::EncodingError),
 
+    /// The internal render pipeline failed unexpectedly.
+    #[error("internal render pipeline failure: {detail}")]
+    Internal {
+        /// Human-readable diagnostic detail for unexpected internal failures.
+        detail: String,
+    },
+
     /// The animation uses features that the configured support profile rejects.
     #[error("animation contains unsupported features: {report}")]
     UnsupportedFeatures {

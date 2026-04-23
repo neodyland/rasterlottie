@@ -1,4 +1,15 @@
 #[cfg(feature = "gif")]
+use std::{
+    iter,
+    num::NonZeroUsize,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        mpsc,
+    },
+    thread,
+};
+
+#[cfg(feature = "gif")]
 use gif::{DisposalMethod, Encoder as GifEncoder, Repeat as GifRepeat};
 use tiny_skia::{BlendMode, Pixmap, PixmapPaint, Transform as PixmapTransform};
 
@@ -33,6 +44,36 @@ use crate::{
     Animation, Layer, LayerType, RasterlottieError, SupportProfile, SupportReport,
     analyze_animation_with_profile, expression::resolve_supported_expressions,
 };
+
+#[cfg(feature = "gif")]
+#[derive(Debug, Clone, Copy)]
+struct ScheduledGifFrame {
+    source_frame: f32,
+    delay: u16,
+}
+
+#[cfg(feature = "gif")]
+struct EncodedGifFrame {
+    index: usize,
+    frame: gif::Frame<'static>,
+}
+
+#[cfg(feature = "gif")]
+#[derive(Clone, Copy)]
+struct GifRenderPipeline<'a> {
+    animation: &'a Animation,
+    config: GifRenderConfig,
+    resources: PreparedResources<'a>,
+    width: u16,
+    height: u16,
+}
+
+#[cfg(feature = "gif")]
+struct GifFrameJobList {
+    requested_fps: f32,
+    output_duration_seconds: f32,
+    frames: Vec<ScheduledGifFrame>,
+}
 
 impl Renderer {
     /// Creates a renderer that uses the provided support profile.
@@ -275,15 +316,7 @@ impl Renderer {
                 width: output_width,
                 height: output_height,
             })?;
-
-        let source_fps = animation.frame_rate.max(1.0);
-        let requested_fps = source_fps.min(config.max_fps.max(1.0));
-        let start_frame = animation.in_point.floor();
-        let end_frame = animation.out_point.ceil().max(start_frame + 1.0);
-        let output_duration_seconds =
-            ((end_frame - start_frame) / source_fps).min(config.max_duration_seconds.max(0.1));
-        let max_output_frames = (requested_fps * output_duration_seconds).floor().max(1.0) as usize;
-        let source_frame_step = source_fps / requested_fps;
+        let frame_jobs = build_gif_frame_jobs(animation, config);
 
         let mut bytes = Vec::new();
         let mut encoder = {
@@ -292,71 +325,274 @@ impl Renderer {
                 "gif_encoder_init",
                 width = width,
                 height = height,
-                requested_fps = requested_fps,
-                output_duration_seconds = output_duration_seconds
+                requested_fps = frame_jobs.requested_fps,
+                output_duration_seconds = frame_jobs.output_duration_seconds
             );
             GifEncoder::new(&mut bytes, width, height, &[])?
         };
         encoder.set_repeat(GifRepeat::Infinite)?;
-        let mut scratch = new_pixmap(output_width, output_height)?;
-        let mut previous_deadline_centiseconds = 0u32;
+        let pipeline = GifRenderPipeline {
+            animation,
+            config,
+            resources,
+            width,
+            height,
+        };
+        let worker_count = resolve_gif_worker_count(frame_jobs.frames.len());
+        if worker_count <= 1 {
+            self.render_gif_frames_sequential(pipeline, &frame_jobs.frames, &mut encoder)?;
+        } else {
+            self.render_gif_frames_parallel(
+                pipeline,
+                &frame_jobs.frames,
+                worker_count,
+                &mut encoder,
+            )?;
+        }
 
-        for rendered in 0..max_output_frames {
-            let source_frame = (rendered as f32).mul_add(source_frame_step, start_frame);
-            if source_frame >= end_frame {
-                break;
-            }
-            {
-                span_enter!(
-                    tracing::Level::TRACE,
-                    "render_gif_frame",
-                    frame_index = rendered,
-                    source_frame = source_frame
-                );
-                self.render_frame_with_assets_into(
-                    animation,
-                    source_frame,
-                    config.render,
-                    resources,
-                    &mut scratch,
-                )?;
-            }
-            let mut gif_frame = {
-                span_enter!(
-                    tracing::Level::TRACE,
-                    "encode_gif_frame",
-                    frame_index = rendered,
-                    quantizer_speed = config.color_quantizer_speed
-                );
-                encode_rgba_frame(
-                    width,
-                    height,
-                    scratch.data_mut(),
-                    config.color_quantizer_speed,
-                )
-            };
-            let next_deadline_centiseconds =
-                ((((rendered + 1) as f64) * 100.0) / f64::from(requested_fps)).round() as u32;
-            let next_deadline_centiseconds =
-                next_deadline_centiseconds.max(previous_deadline_centiseconds + 1);
-            let frame_delay =
-                u16::try_from(next_deadline_centiseconds - previous_deadline_centiseconds)
-                    .unwrap_or(u16::MAX);
-            previous_deadline_centiseconds = next_deadline_centiseconds;
-            gif_frame.delay = frame_delay;
-            gif_frame.dispose = DisposalMethod::Background;
+        drop(encoder);
+        Ok(bytes)
+    }
+
+    #[cfg(all(test, feature = "gif"))]
+    fn render_gif_with_assets_for_test(
+        &self,
+        animation: &Animation,
+        config: GifRenderConfig,
+        resources: PreparedResources<'_>,
+        worker_count: usize,
+    ) -> Result<Vec<u8>, RasterlottieError> {
+        span_enter!(
+            tracing::Level::TRACE,
+            "render_gif_with_assets",
+            width = animation.width,
+            height = animation.height
+        );
+        let (output_width, output_height) = resolve_output_canvas_size(animation, config.render)?;
+        let width =
+            u16::try_from(output_width).map_err(|_| RasterlottieError::InvalidCanvasSize {
+                width: output_width,
+                height: output_height,
+            })?;
+        let height =
+            u16::try_from(output_height).map_err(|_| RasterlottieError::InvalidCanvasSize {
+                width: output_width,
+                height: output_height,
+            })?;
+        let frame_jobs = build_gif_frame_jobs(animation, config);
+
+        let mut bytes = Vec::new();
+        let mut encoder = GifEncoder::new(&mut bytes, width, height, &[])?;
+        encoder.set_repeat(GifRepeat::Infinite)?;
+        let pipeline = GifRenderPipeline {
+            animation,
+            config,
+            resources,
+            width,
+            height,
+        };
+        if worker_count <= 1 {
+            self.render_gif_frames_sequential(pipeline, &frame_jobs.frames, &mut encoder)?;
+        } else {
+            self.render_gif_frames_parallel(
+                pipeline,
+                &frame_jobs.frames,
+                worker_count,
+                &mut encoder,
+            )?;
+        }
+
+        drop(encoder);
+        Ok(bytes)
+    }
+
+    #[cfg(feature = "gif")]
+    fn render_gif_frames_sequential(
+        &self,
+        pipeline: GifRenderPipeline<'_>,
+        jobs: &[ScheduledGifFrame],
+        encoder: &mut GifEncoder<&mut Vec<u8>>,
+    ) -> Result<(), RasterlottieError> {
+        let (output_width, output_height) =
+            resolve_output_canvas_size(pipeline.animation, pipeline.config.render)?;
+        let mut scratch = new_pixmap(output_width, output_height)?;
+        for (frame_index, job) in jobs.iter().enumerate() {
+            let gif_frame =
+                self.render_encoded_gif_frame(pipeline, &mut scratch, frame_index, *job)?;
             {
                 span_enter!(
                     tracing::Level::TRACE,
                     "write_gif_frame",
-                    frame_index = rendered
+                    frame_index = frame_index
                 );
                 encoder.write_frame(&gif_frame)?;
             }
         }
 
-        drop(encoder);
-        Ok(bytes)
+        Ok(())
+    }
+
+    #[cfg(feature = "gif")]
+    fn render_gif_frames_parallel(
+        &self,
+        pipeline: GifRenderPipeline<'_>,
+        jobs: &[ScheduledGifFrame],
+        worker_count: usize,
+        encoder: &mut GifEncoder<&mut Vec<u8>>,
+    ) -> Result<(), RasterlottieError> {
+        let (sender, receiver) = mpsc::channel::<Result<EncodedGifFrame, RasterlottieError>>();
+        let stop = AtomicBool::new(false);
+        let next_job = AtomicUsize::new(0);
+        let use_static_path_cache = pipeline.resources.shape_caches.static_paths.is_some();
+        let use_timeline_sample_cache = pipeline.resources.shape_caches.timeline_samples.is_some();
+        let shape_plan_cache = pipeline.resources.shape_caches.plans;
+        let layer_hierarchy_cache = pipeline.resources.layer_hierarchy_cache;
+
+        thread::scope(|scope| -> Result<(), RasterlottieError> {
+            for _worker_index in 0..worker_count {
+                let sender = sender.clone();
+                let stop = &stop;
+                let next_job = &next_job;
+                let worker_image_assets = pipeline.resources.image_assets.clone_for_worker();
+                scope.spawn(move || {
+                    let result = (|| -> Result<(), RasterlottieError> {
+                        let worker_static_path_cache =
+                            use_static_path_cache.then(StaticPathCache::default);
+                        let worker_timeline_sample_cache =
+                            use_timeline_sample_cache.then(TimelineSampleCache::default);
+                        let worker_resources = PreparedResources {
+                            image_assets: &worker_image_assets,
+                            shape_caches: ShapeCaches {
+                                static_paths: worker_static_path_cache.as_ref(),
+                                plans: shape_plan_cache,
+                                timeline_samples: worker_timeline_sample_cache.as_ref(),
+                            },
+                            layer_hierarchy_cache,
+                        };
+                        let (output_width, output_height) =
+                            resolve_output_canvas_size(pipeline.animation, pipeline.config.render)?;
+                        let mut scratch = new_pixmap(output_width, output_height)?;
+                        let worker_pipeline = GifRenderPipeline {
+                            animation: pipeline.animation,
+                            config: pipeline.config,
+                            resources: worker_resources,
+                            width: pipeline.width,
+                            height: pipeline.height,
+                        };
+
+                        loop {
+                            if stop.load(Ordering::Relaxed) {
+                                break;
+                            }
+
+                            let frame_index = next_job.fetch_add(1, Ordering::Relaxed);
+                            let Some(job) = jobs.get(frame_index).copied() else {
+                                break;
+                            };
+                            let frame = self.render_encoded_gif_frame(
+                                worker_pipeline,
+                                &mut scratch,
+                                frame_index,
+                                job,
+                            )?;
+                            if sender
+                                .send(Ok(EncodedGifFrame {
+                                    index: frame_index,
+                                    frame,
+                                }))
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+
+                        Ok(())
+                    })();
+                    if let Err(error) = result {
+                        stop.store(true, Ordering::Relaxed);
+                        let _ = sender.send(Err(error));
+                    }
+                });
+            }
+            drop(sender);
+
+            let mut pending_frames = iter::repeat_with(|| None)
+                .take(jobs.len())
+                .collect::<Vec<Option<gif::Frame<'static>>>>();
+            let mut next_to_write = 0usize;
+            while next_to_write < jobs.len() {
+                let result = receiver.recv().map_err(|_| RasterlottieError::Internal {
+                    detail: "GIF worker channel closed unexpectedly".to_string(),
+                })?;
+                match result {
+                    Ok(encoded_frame) => {
+                        pending_frames[encoded_frame.index] = Some(encoded_frame.frame);
+                        while next_to_write < pending_frames.len() {
+                            let Some(frame) = pending_frames[next_to_write].take() else {
+                                break;
+                            };
+                            {
+                                span_enter!(
+                                    tracing::Level::TRACE,
+                                    "write_gif_frame",
+                                    frame_index = next_to_write
+                                );
+                                encoder.write_frame(&frame)?;
+                            }
+                            next_to_write += 1;
+                        }
+                    }
+                    Err(error) => {
+                        stop.store(true, Ordering::Relaxed);
+                        return Err(error);
+                    }
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+    #[cfg(feature = "gif")]
+    fn render_encoded_gif_frame(
+        &self,
+        pipeline: GifRenderPipeline<'_>,
+        scratch: &mut Pixmap,
+        frame_index: usize,
+        job: ScheduledGifFrame,
+    ) -> Result<gif::Frame<'static>, RasterlottieError> {
+        {
+            span_enter!(
+                tracing::Level::TRACE,
+                "render_gif_frame",
+                frame_index = frame_index,
+                source_frame = job.source_frame
+            );
+            self.render_frame_with_assets_into(
+                pipeline.animation,
+                job.source_frame,
+                pipeline.config.render,
+                pipeline.resources,
+                scratch,
+            )?;
+        }
+        let mut gif_frame = {
+            span_enter!(
+                tracing::Level::TRACE,
+                "encode_gif_frame",
+                frame_index = frame_index,
+                quantizer_speed = pipeline.config.color_quantizer_speed
+            );
+            encode_rgba_frame(
+                pipeline.width,
+                pipeline.height,
+                scratch.data_mut(),
+                pipeline.config.color_quantizer_speed,
+            )
+        };
+        gif_frame.delay = job.delay;
+        gif_frame.dispose = DisposalMethod::Background;
+        Ok(gif_frame)
     }
 
     fn render_layer_stack(
@@ -616,6 +852,28 @@ impl PreparedAnimation {
         )
     }
 
+    #[cfg(all(test, feature = "gif"))]
+    pub(crate) fn render_gif_with_parallelism_for_test(
+        &self,
+        config: GifRenderConfig,
+        worker_count: usize,
+    ) -> Result<Vec<u8>, RasterlottieError> {
+        self.renderer.render_gif_with_assets_for_test(
+            &self.animation,
+            config,
+            PreparedResources {
+                image_assets: &self.image_assets,
+                shape_caches: ShapeCaches {
+                    static_paths: Some(&self.static_path_cache),
+                    plans: Some(&self.shape_plan_cache),
+                    timeline_samples: Some(&self.timeline_sample_cache),
+                },
+                layer_hierarchy_cache: Some(&self.layer_hierarchy_cache),
+            },
+            worker_count.max(1),
+        )
+    }
+
     /// Allocates a scratch pixmap that matches the animation's native canvas size.
     ///
     /// # Errors
@@ -675,4 +933,57 @@ impl RenderTransform {
             opacity: self.opacity * other.opacity,
         }
     }
+}
+
+#[cfg(feature = "gif")]
+#[must_use]
+fn build_gif_frame_jobs(animation: &Animation, config: GifRenderConfig) -> GifFrameJobList {
+    let source_fps = animation.frame_rate.max(1.0);
+    let requested_fps = source_fps.min(config.max_fps.max(1.0));
+    let start_frame = animation.in_point.floor();
+    let end_frame = animation.out_point.ceil().max(start_frame + 1.0);
+    let output_duration_seconds =
+        ((end_frame - start_frame) / source_fps).min(config.max_duration_seconds.max(0.1));
+    let max_output_frames = (requested_fps * output_duration_seconds).floor().max(1.0) as usize;
+    let source_frame_step = source_fps / requested_fps;
+
+    let mut frames = Vec::with_capacity(max_output_frames);
+    let mut previous_deadline_centiseconds = 0u32;
+    for rendered in 0..max_output_frames {
+        let source_frame = (rendered as f32).mul_add(source_frame_step, start_frame);
+        if source_frame >= end_frame {
+            break;
+        }
+
+        let next_deadline_centiseconds =
+            ((((rendered + 1) as f64) * 100.0) / f64::from(requested_fps)).round() as u32;
+        let next_deadline_centiseconds =
+            next_deadline_centiseconds.max(previous_deadline_centiseconds + 1);
+        let delay = u16::try_from(next_deadline_centiseconds - previous_deadline_centiseconds)
+            .unwrap_or(u16::MAX);
+        previous_deadline_centiseconds = next_deadline_centiseconds;
+        frames.push(ScheduledGifFrame {
+            source_frame,
+            delay,
+        });
+    }
+
+    GifFrameJobList {
+        requested_fps,
+        output_duration_seconds,
+        frames,
+    }
+}
+
+#[cfg(feature = "gif")]
+#[must_use]
+fn resolve_gif_worker_count(frame_count: usize) -> usize {
+    if frame_count < 2 {
+        return 1;
+    }
+
+    thread::available_parallelism()
+        .map_or(1, NonZeroUsize::get)
+        .min(frame_count)
+        .min(8)
 }

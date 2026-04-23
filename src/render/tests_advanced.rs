@@ -39,6 +39,38 @@ fn decode_gif_rgba_frames(bytes: &[u8]) -> Vec<DecodedGifFrame> {
     frames
 }
 
+#[cfg(feature = "gif")]
+fn moving_rect_gif_animation() -> Animation {
+    Animation::from_json_str(
+        r#"{
+                "v":"5.7.6",
+                "fr":60,
+                "ip":0,
+                "op":60,
+                "w":16,
+                "h":16,
+                "layers":[
+                    {
+                        "nm":"Shape Layer 1",
+                        "ind":1,
+                        "ty":4,
+                        "shapes":[
+                            {
+                                "ty":"gr",
+                                "it":[
+                                    {"ty":"rc","p":{"a":1,"k":[{"t":0,"s":[4,8],"e":[12,8],"i":{"x":[1,1],"y":[1,1]},"o":{"x":[0,0],"y":[0,0]}},{"t":59,"s":[12,8]}]},"s":{"a":0,"k":[4,4]},"r":{"a":0,"k":0}},
+                                    {"ty":"fl","c":{"a":0,"k":[1,0,0,1]},"o":{"a":0,"k":100}},
+                                    {"ty":"tr","a":{"a":0,"k":[0,0]},"p":{"a":0,"k":[0,0]},"s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}}
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }"#,
+    )
+    .unwrap()
+}
+
 #[test]
 fn renderer_respects_rounded_rectangle_corners() {
     let animation = Animation::from_json_str(
@@ -550,34 +582,7 @@ fn renderer_uses_background_disposal_for_gif_frames() {
 #[cfg(feature = "gif")]
 #[test]
 fn renderer_quantizes_gif_frame_rate_to_centiseconds() {
-    let animation = Animation::from_json_str(
-        r#"{
-                "v":"5.7.6",
-                "fr":60,
-                "ip":0,
-                "op":60,
-                "w":16,
-                "h":16,
-                "layers":[
-                    {
-                        "nm":"Shape Layer 1",
-                        "ind":1,
-                        "ty":4,
-                        "shapes":[
-                            {
-                                "ty":"gr",
-                                "it":[
-                                    {"ty":"rc","p":{"a":1,"k":[{"t":0,"s":[4,8],"e":[12,8],"i":{"x":[1,1],"y":[1,1]},"o":{"x":[0,0],"y":[0,0]}},{"t":59,"s":[12,8]}]},"s":{"a":0,"k":[4,4]},"r":{"a":0,"k":0}},
-                                    {"ty":"fl","c":{"a":0,"k":[1,0,0,1]},"o":{"a":0,"k":100}},
-                                    {"ty":"tr","a":{"a":0,"k":[0,0]},"p":{"a":0,"k":[0,0]},"s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}}
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }"#,
-    )
-    .unwrap();
+    let animation = moving_rect_gif_animation();
 
     let bytes = Renderer::default()
         .render_gif(
@@ -611,34 +616,7 @@ fn renderer_quantizes_gif_frame_rate_to_centiseconds() {
 #[cfg(feature = "gif")]
 #[test]
 fn renderer_distributes_gif_delays_for_non_integer_centisecond_frame_rate() {
-    let animation = Animation::from_json_str(
-        r#"{
-                "v":"5.7.6",
-                "fr":60,
-                "ip":0,
-                "op":60,
-                "w":16,
-                "h":16,
-                "layers":[
-                    {
-                        "nm":"Shape Layer 1",
-                        "ind":1,
-                        "ty":4,
-                        "shapes":[
-                            {
-                                "ty":"gr",
-                                "it":[
-                                    {"ty":"rc","p":{"a":1,"k":[{"t":0,"s":[4,8],"e":[12,8],"i":{"x":[1,1],"y":[1,1]},"o":{"x":[0,0],"y":[0,0]}},{"t":59,"s":[12,8]}]},"s":{"a":0,"k":[4,4]},"r":{"a":0,"k":0}},
-                                    {"ty":"fl","c":{"a":0,"k":[1,0,0,1]},"o":{"a":0,"k":100}},
-                                    {"ty":"tr","a":{"a":0,"k":[0,0]},"p":{"a":0,"k":[0,0]},"s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}}
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }"#,
-    )
-    .unwrap();
+    let animation = moving_rect_gif_animation();
 
     let bytes = Renderer::default()
         .render_gif(
@@ -662,6 +640,27 @@ fn renderer_distributes_gif_delays_for_non_integer_centisecond_frame_rate() {
         delays.iter().map(|delay| u32::from(*delay)).sum::<u32>(),
         100
     );
+}
+
+#[cfg(feature = "gif")]
+#[test]
+fn prepared_animation_parallel_gif_matches_sequential_output() {
+    let animation = moving_rect_gif_animation();
+    let prepared = Renderer::default().prepare(&animation).unwrap();
+    let config = GifRenderConfig {
+        max_fps: 15.0,
+        max_duration_seconds: 1.0,
+        ..GifRenderConfig::default()
+    };
+
+    let sequential = prepared
+        .render_gif_with_parallelism_for_test(config, 1)
+        .unwrap();
+    let parallel = prepared
+        .render_gif_with_parallelism_for_test(config, 2)
+        .unwrap();
+
+    assert_eq!(parallel, sequential);
 }
 
 #[test]
