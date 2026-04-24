@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and the project follows Semantic Versioning.
 
+## [0.2.1]
+
+### Added
+
+- Regression coverage for parallel GIF encoding parity, cropped GIF frame visual parity, and partial-frame output behavior.
+- Validation coverage for non-default feature combinations so optional `dotlottie`, `gif`, `images`, `text`, and `tracing` builds stay warning-free.
+
+### Changed
+
+- Accelerated GIF export by parallelizing frame rendering and palette quantization work across worker threads.
+- Reduced GIF encoding work and output size by emitting cropped subframes when only part of the canvas changes.
+
+### Fixed
+
+- Preserved GIF disposal behavior when cropped frames need transparent clears or can safely keep static pixels.
+- Removed feature-gated unused warnings and a `text`-only test build regression that appeared in non-default feature combinations.
+
 ## [0.2.0]
 
 ### Added
