@@ -297,6 +297,7 @@ name = "rasterlottie"
 version = "0.2.0"
 dependencies = [
  "base64",
+ "color_quant",
  "gif",
  "image",
  "rustc-hash",

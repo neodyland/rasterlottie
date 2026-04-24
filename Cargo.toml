@@ -32,13 +32,14 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = ["gif", "images", "text"]
 dotlottie = ["dep:zip"]
-gif = ["dep:gif"]
+gif = ["dep:color_quant", "dep:gif"]
 images = ["dep:base64", "dep:image"]
 text = ["dep:unicode-segmentation"]
 tracing = ["dep:tracing"]
 
 [dependencies]
 base64 = { version = "0.22", optional = true }
+color_quant = { version = "1.1", optional = true }
 gif = { version = "0.14", optional = true }
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "jpeg", "png", "webp"], optional = true }
 rustc-hash = "2"

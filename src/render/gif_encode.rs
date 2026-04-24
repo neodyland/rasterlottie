@@ -1,81 +1,88 @@
 use std::borrow::Cow;
 
+use color_quant::NeuQuant;
 use gif::Frame as GifFrame;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
+#[derive(Clone, Copy)]
+pub(super) struct GifSubframeRegion {
+    pub source_width: u16,
+    pub left: u16,
+    pub top: u16,
+    pub width: u16,
+    pub height: u16,
+}
+
+struct ExactPalette {
+    palette_lookup: FxHashMap<u32, u8>,
+    palette: Vec<u8>,
+    transparent_index: Option<u8>,
+    unique_colors: usize,
+}
+
+#[cfg(test)]
 pub(super) fn encode_rgba_frame(
     width: u16,
     height: u16,
     rgba: &mut [u8],
     quantizer_speed: i32,
 ) -> GifFrame<'static> {
+    encode_rgba_subframe(
+        GifSubframeRegion {
+            source_width: width,
+            left: 0,
+            top: 0,
+            width,
+            height,
+        },
+        rgba,
+        quantizer_speed,
+    )
+}
+
+pub(super) fn encode_rgba_subframe(
+    region: GifSubframeRegion,
+    rgba: &mut [u8],
+    quantizer_speed: i32,
+) -> GifFrame<'static> {
+    debug_assert_eq!(rgba.len() % (usize::from(region.source_width) * 4), 0);
     span_enter!(tracing::Level::TRACE, "gif_exact_palette");
     let transparent = canonicalize_transparent_pixels(rgba);
-    let mut encounter_colors = Vec::with_capacity(256);
-    let mut palette_lookup = FxHashMap::default();
-    palette_lookup.reserve(256);
-    let mut buffer = Vec::with_capacity(rgba.len() / 4);
-
-    for pixel in rgba.chunks_exact(4) {
-        let color = packed_rgba(pixel);
-        let palette_index = if let Some(index) = palette_lookup.get(&color).copied() {
-            index
-        } else {
-            if encounter_colors.len() == 256 {
-                span_enter!(
-                    tracing::Level::TRACE,
-                    "gif_quantizer_fallback",
-                    quantizer_speed = quantizer_speed
-                );
-                return GifFrame::from_rgba_speed(width, height, rgba, quantizer_speed);
-            }
-
-            encounter_colors.push(color);
-            let index = (encounter_colors.len() - 1) as u8;
-            palette_lookup.insert(color, index);
-            index
+    if let Some(exact_palette) = build_exact_palette(rgba, transparent) {
+        trace!(
+            unique_colors = exact_palette.unique_colors,
+            "gif exact palette"
+        );
+        return GifFrame {
+            width: region.width,
+            height: region.height,
+            buffer: Cow::Owned(crop_indexed_subframe(region, rgba, |pixel| {
+                exact_palette
+                    .palette_lookup
+                    .get(&packed_rgba(pixel))
+                    .copied()
+                    .unwrap_or(0)
+            })),
+            palette: Some(exact_palette.palette),
+            transparent: exact_palette.transparent_index,
+            ..GifFrame::default()
         };
-        buffer.push(palette_index);
     }
 
-    trace!(unique_colors = encounter_colors.len(), "gif exact palette");
-    let mut sorted_colors = encounter_colors.clone();
-    sorted_colors.sort_unstable();
-    let mut sorted_lookup = FxHashMap::default();
-    sorted_lookup.reserve(sorted_colors.len());
-
-    let mut remap = [0u8; 256];
-    for (sorted_index, color) in sorted_colors.iter().copied().enumerate() {
-        sorted_lookup.insert(color, sorted_index as u8);
-    }
-    for (encounter_index, color) in encounter_colors.iter().copied().enumerate() {
-        let sorted_index = sorted_lookup.get(&color).copied().unwrap_or(0);
-        remap[encounter_index] = sorted_index;
-    }
-
-    for index in &mut buffer {
-        *index = remap[*index as usize];
-    }
-
-    let mut palette = Vec::with_capacity(sorted_colors.len() * 3);
-    for color in &sorted_colors {
-        let [r, g, b, _a] = color.to_be_bytes();
-        palette.extend([r, g, b]);
-    }
-
-    let transparent_index = transparent.and_then(|color| {
-        encounter_colors
-            .iter()
-            .position(|candidate| *candidate == color)
-            .map(|encounter_index| remap[encounter_index])
-    });
-
+    span_enter!(
+        tracing::Level::TRACE,
+        "gif_quantizer_fallback",
+        quantizer_speed = quantizer_speed
+    );
+    let quantizer = NeuQuant::new(quantizer_speed, 256, rgba);
     GifFrame {
-        width,
-        height,
-        buffer: Cow::Owned(buffer),
-        palette: Some(palette),
-        transparent: transparent_index,
+        width: region.width,
+        height: region.height,
+        buffer: Cow::Owned(crop_indexed_subframe(region, rgba, |pixel| {
+            quantizer.index_of(pixel) as u8
+        })),
+        palette: Some(quantizer.color_map_rgb()),
+        transparent: transparent.map(|color| quantizer.index_of(&color.to_be_bytes()) as u8),
         ..GifFrame::default()
     }
 }
@@ -99,8 +106,63 @@ fn canonicalize_transparent_pixels(rgba: &mut [u8]) -> Option<u32> {
     transparent
 }
 
+fn build_exact_palette(rgba: &[u8], transparent: Option<u32>) -> Option<ExactPalette> {
+    let mut colors = Vec::with_capacity(256);
+    let mut seen = FxHashSet::default();
+    seen.reserve(256);
+
+    for pixel in rgba.chunks_exact(4) {
+        let color = packed_rgba(pixel);
+        if seen.insert(color) {
+            if colors.len() == 256 {
+                return None;
+            }
+            colors.push(color);
+        }
+    }
+
+    colors.sort_unstable();
+    let mut palette_lookup = FxHashMap::default();
+    palette_lookup.reserve(colors.len());
+    let mut palette = Vec::with_capacity(colors.len() * 3);
+    for (index, color) in colors.iter().copied().enumerate() {
+        palette_lookup.insert(color, index as u8);
+        let [r, g, b, _a] = color.to_be_bytes();
+        palette.extend([r, g, b]);
+    }
+
+    Some(ExactPalette {
+        transparent_index: transparent.and_then(|color| palette_lookup.get(&color).copied()),
+        palette_lookup,
+        palette,
+        unique_colors: colors.len(),
+    })
+}
+
 fn packed_rgba(pixel: &[u8]) -> u32 {
     u32::from_be_bytes([pixel[0], pixel[1], pixel[2], pixel[3]])
+}
+
+fn crop_indexed_subframe<F>(region: GifSubframeRegion, rgba: &[u8], mut index_of: F) -> Vec<u8>
+where
+    F: FnMut(&[u8]) -> u8,
+{
+    let source_width = usize::from(region.source_width);
+    let left = usize::from(region.left);
+    let top = usize::from(region.top);
+    let width = usize::from(region.width);
+    let height = usize::from(region.height);
+    let mut buffer = Vec::with_capacity(width * height);
+
+    for y in top..top + height {
+        let row_start = ((y * source_width) + left) * 4;
+        let row_end = row_start + width * 4;
+        for pixel in rgba[row_start..row_end].chunks_exact(4) {
+            buffer.push(index_of(pixel));
+        }
+    }
+
+    buffer
 }
 
 #[cfg(test)]
