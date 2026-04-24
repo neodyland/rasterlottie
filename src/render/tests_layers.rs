@@ -5,7 +5,9 @@ use super::tests::{solid_png_bytes, solid_png_data_url};
 use super::{tests::pixel_at, *};
 use crate::Animation;
 #[cfg(feature = "images")]
-use crate::{RasterlottieError, analyze_animation};
+use crate::RasterlottieError;
+#[cfg(any(feature = "images", feature = "text"))]
+use crate::analyze_animation;
 
 #[cfg(feature = "images")]
 #[test]

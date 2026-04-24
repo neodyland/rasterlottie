@@ -95,7 +95,7 @@ impl PreparedAnimation {
         &self.animation
     }
 
-    pub(super) fn prepared_resources(&self) -> super::PreparedResources<'_> {
+    pub(super) const fn prepared_resources(&self) -> super::PreparedResources<'_> {
         super::PreparedResources {
             image_assets: &self.image_assets,
             shape_caches: ShapeCaches {

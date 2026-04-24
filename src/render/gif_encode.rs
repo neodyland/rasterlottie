@@ -17,6 +17,7 @@ struct ExactPalette {
     palette_lookup: FxHashMap<u32, u8>,
     palette: Vec<u8>,
     transparent_index: Option<u8>,
+    #[cfg(feature = "tracing")]
     unique_colors: usize,
 }
 
@@ -49,6 +50,7 @@ pub(super) fn encode_rgba_subframe(
     span_enter!(tracing::Level::TRACE, "gif_exact_palette");
     let transparent = canonicalize_transparent_pixels(rgba);
     if let Some(exact_palette) = build_exact_palette(rgba, transparent) {
+        #[cfg(feature = "tracing")]
         trace!(
             unique_colors = exact_palette.unique_colors,
             "gif exact palette"
@@ -135,6 +137,7 @@ fn build_exact_palette(rgba: &[u8], transparent: Option<u32>) -> Option<ExactPal
         transparent_index: transparent.and_then(|color| palette_lookup.get(&color).copied()),
         palette_lookup,
         palette,
+        #[cfg(feature = "tracing")]
         unique_colors: colors.len(),
     })
 }

@@ -56,7 +56,7 @@ impl Clone for EncodedImageSource {
 }
 
 impl ImageAssetStore {
-    #[cfg(feature = "images")]
+    #[cfg(all(feature = "images", feature = "gif"))]
     pub(super) fn clone_for_worker(&self) -> Self {
         let mut entries = FxHashMap::default();
         entries.reserve(self.entries.len());
@@ -74,8 +74,8 @@ impl ImageAssetStore {
         Self { entries }
     }
 
-    #[cfg(not(feature = "images"))]
-    pub(super) fn clone_for_worker(&self) -> Self {
+    #[cfg(all(not(feature = "images"), feature = "gif"))]
+    pub(super) const fn clone_for_worker(&self) -> Self {
         let _store_size = size_of_val(self);
         Self
     }

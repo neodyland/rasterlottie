@@ -69,7 +69,9 @@ struct GifRenderPipeline<'a> {
 }
 
 struct GifFrameJobList {
+    #[cfg(feature = "tracing")]
     requested_fps: f32,
+    #[cfg(feature = "tracing")]
     output_duration_seconds: f32,
     frames: Vec<ScheduledGifFrame>,
 }
@@ -135,9 +137,13 @@ impl Renderer {
                 tracing::Level::TRACE,
                 "gif_encoder_init",
                 width = width,
-                height = height,
+                height = height
+            );
+            #[cfg(feature = "tracing")]
+            trace!(
                 requested_fps = frame_jobs.requested_fps,
-                output_duration_seconds = frame_jobs.output_duration_seconds
+                output_duration_seconds = frame_jobs.output_duration_seconds,
+                "gif frame schedule"
             );
             GifEncoder::new(&mut bytes, width, height, &[])?
         };
@@ -582,7 +588,9 @@ fn build_gif_frame_jobs(animation: &Animation, config: GifRenderConfig) -> GifFr
     }
 
     GifFrameJobList {
+        #[cfg(feature = "tracing")]
         requested_fps,
+        #[cfg(feature = "tracing")]
         output_duration_seconds,
         frames,
     }
