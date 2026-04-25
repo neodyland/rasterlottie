@@ -364,7 +364,7 @@ impl Renderer {
                     })();
                     if let Err(error) = result {
                         stop.store(true, Ordering::Relaxed);
-                        let _ = sender.send(Err(error));
+                        drop(sender.send(Err(error)));
                     }
                 });
             }
@@ -377,9 +377,9 @@ impl Renderer {
                         let planned = if let Ok(receiver) = receiver.lock() {
                             receiver.recv()
                         } else {
-                            let _ = sender.send(Err(RasterlottieError::Internal {
+                            drop(sender.send(Err(RasterlottieError::Internal {
                                 detail: "GIF encode worker receiver mutex was poisoned".to_string(),
-                            }));
+                            })));
                             return;
                         };
                         let Ok(planned) = planned else {
