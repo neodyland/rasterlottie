@@ -39,7 +39,7 @@ tracing = ["dep:tracing"]
 
 [dependencies]
 base64 = { version = "0.22", optional = true }
-color_quant = { version = "1", optional = true }
+color_quant = { version = "2", optional = true }
 gif = { version = "0.14", optional = true }
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "jpeg", "png", "webp"], optional = true }
 rustc-hash = "2"
