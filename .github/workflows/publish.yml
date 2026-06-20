@@ -20,7 +20,7 @@ jobs:
       CARGO_TERM_COLOR: always
       RUSTFLAGS: -Zthreads=8 -C link-arg=-fuse-ld=mold
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install mold
         shell: bash
