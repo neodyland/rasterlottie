@@ -92,7 +92,7 @@ pub(super) fn encode_rgba_subframe(
 fn canonicalize_transparent_pixels(rgba: &mut [u8]) -> Option<u32> {
     let mut transparent: Option<u32> = None;
 
-    for pixel in rgba.chunks_exact_mut(4) {
+    for pixel in rgba.as_chunks_mut::<4>().0 {
         if pixel[3] != 0 {
             pixel[3] = u8::MAX;
             continue;
@@ -113,7 +113,7 @@ fn build_exact_palette(rgba: &[u8], transparent: Option<u32>) -> Option<ExactPal
     let mut seen = FxHashSet::default();
     seen.reserve(256);
 
-    for pixel in rgba.chunks_exact(4) {
+    for pixel in rgba.as_chunks::<4>().0 {
         let color = packed_rgba(pixel);
         if seen.insert(color) {
             if colors.len() == 256 {
@@ -142,7 +142,7 @@ fn build_exact_palette(rgba: &[u8], transparent: Option<u32>) -> Option<ExactPal
     })
 }
 
-fn packed_rgba(pixel: &[u8]) -> u32 {
+const fn packed_rgba(pixel: &[u8]) -> u32 {
     u32::from_be_bytes([pixel[0], pixel[1], pixel[2], pixel[3]])
 }
 
@@ -160,7 +160,7 @@ where
     for y in top..top + height {
         let row_start = ((y * source_width) + left) * 4;
         let row_end = row_start + width * 4;
-        for pixel in rgba[row_start..row_end].chunks_exact(4) {
+        for pixel in rgba[row_start..row_end].as_chunks::<4>().0 {
             buffer.push(index_of(pixel));
         }
     }

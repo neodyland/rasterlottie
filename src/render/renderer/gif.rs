@@ -748,7 +748,7 @@ where
     let mut max_y = 0usize;
     let mut found = false;
 
-    for (index, (left, right)) in left.chunks_exact(4).zip(right.chunks_exact(4)).enumerate() {
+    for (index, (left, right)) in left.as_chunks::<4>().0.iter().zip(right.as_chunks::<4>().0.iter()).enumerate() {
         if !predicate(left, right) {
             continue;
         }

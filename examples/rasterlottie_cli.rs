@@ -740,9 +740,9 @@ fn parse_hex_channels<const N: usize>(
     original_value: &str,
 ) -> Result<[u8; N], ActionError> {
     let mut channels = [0; N];
-    let mut chunks = hex.as_bytes().chunks_exact(2);
+    let (chunks, remainder) = hex.as_bytes().as_chunks::<2>();
 
-    for (channel, chunk) in channels.iter_mut().zip(chunks.by_ref()) {
+    for (channel, chunk) in channels.iter_mut().zip(chunks.iter()) {
         let chunk = str::from_utf8(chunk).map_err(|_| {
             to_action_error(&format!(
                 "invalid background `{original_value}`: expected ASCII hex digits"
@@ -751,7 +751,7 @@ fn parse_hex_channels<const N: usize>(
         *channel = parse_hex_channel(chunk)?;
     }
 
-    if !chunks.remainder().is_empty() {
+    if !remainder.is_empty() {
         return Err(to_action_error(&format!(
             "invalid background `{original_value}`: expected RRGGBB or RRGGBBAA"
         )));

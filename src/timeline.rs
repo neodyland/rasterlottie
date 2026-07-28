@@ -455,7 +455,7 @@ fn cubic_bezier_ease(progress: f32, x1: f32, y1: f32, x2: f32, y2: f32) -> f32 {
     let mut low = 0.0;
     let mut high = 1.0;
     for _ in 0..24 {
-        let mid = (low + high) * 0.5;
+        let mid = f32::midpoint(low, high);
         let x = cubic_bezier_point(mid, 0.0, x1, x2, 1.0);
         if x < progress {
             low = mid;
@@ -464,7 +464,7 @@ fn cubic_bezier_ease(progress: f32, x1: f32, y1: f32, x2: f32, y2: f32) -> f32 {
         }
     }
 
-    cubic_bezier_point((low + high) * 0.5, 0.0, y1, y2, 1.0)
+    cubic_bezier_point(f32::midpoint(low, high), 0.0, y1, y2, 1.0)
 }
 
 fn eased_progress(

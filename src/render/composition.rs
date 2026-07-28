@@ -120,7 +120,7 @@ fn pixmap_alpha_bounds(pixmap: &Pixmap) -> Option<IntRect> {
     let mut max_y = 0usize;
     let mut found = false;
 
-    for (index, pixel) in pixmap.data().chunks_exact(4).enumerate() {
+    for (index, pixel) in pixmap.data().as_chunks::<4>().0.iter().enumerate() {
         if pixel[3] == 0 {
             continue;
         }

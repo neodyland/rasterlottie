@@ -41,7 +41,7 @@ fn apply_fill_effect(pixmap: &mut Pixmap, effect: &FillEffect, frame: f32) {
         return;
     }
 
-    for pixel in pixmap.data_mut().chunks_exact_mut(4) {
+    for pixel in pixmap.data_mut().as_chunks_mut::<4>().0 {
         if pixel[3] == 0 {
             continue;
         }

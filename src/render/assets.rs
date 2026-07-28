@@ -268,7 +268,7 @@ fn decode_data_url_bytes(asset: &Asset, data_url: &str) -> Result<Vec<u8>, Raste
 
 #[cfg(feature = "images")]
 fn premultiply_rgba(pixels: &mut [u8]) {
-    for pixel in pixels.chunks_exact_mut(4) {
+    for pixel in pixels.as_chunks_mut::<4>().0 {
         let alpha = pixel[3] as u16;
         pixel[0] = ((pixel[0] as u16 * alpha + 127) / 255) as u8;
         pixel[1] = ((pixel[1] as u16 * alpha + 127) / 255) as u8;
