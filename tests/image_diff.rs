@@ -53,7 +53,9 @@ mod tests {
         let mut max_channel_error = 0u8;
         for (actual_rgba, expected_rgba) in actual
             .pixels
-            .as_chunks::<4>().0.iter()
+            .as_chunks::<4>()
+            .0
+            .iter()
             .zip(expected.pixels.as_chunks::<4>().0.iter())
         {
             let mut pixel_changed = false;
