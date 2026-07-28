@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and the project follows Semantic Versioning.
 
+## [0.2.2]
+
+## Changed
+
+- Dependency upgrades.
+
 ## [0.2.1]
 
 ### Added
