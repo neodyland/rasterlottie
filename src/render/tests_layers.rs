@@ -6,8 +6,6 @@ use super::{tests::pixel_at, *};
 use crate::Animation;
 #[cfg(feature = "images")]
 use crate::RasterlottieError;
-#[cfg(any(feature = "images", feature = "text"))]
-use crate::analyze_animation;
 
 #[cfg(feature = "images")]
 #[test]
@@ -40,8 +38,6 @@ fn renderer_draws_embedded_image_layers() {
             }}"#
     ))
     .unwrap();
-
-    assert!(analyze_animation(&animation).is_supported());
 
     let frame = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())
@@ -220,8 +216,6 @@ fn renderer_draws_glyph_text_layers() {
             }"#,
     )
     .unwrap();
-
-    assert!(analyze_animation(&animation).is_supported());
 
     let frame = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())

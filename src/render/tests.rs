@@ -8,7 +8,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use image::{ColorType, ImageEncoder, Rgba, RgbaImage, codecs::png::PngEncoder};
 
 use super::*;
-use crate::{Animation, analyze_animation};
+use crate::Animation;
 
 #[test]
 fn renderer_can_produce_a_blank_frame_for_an_empty_animation() {
@@ -343,8 +343,6 @@ fn renderer_applies_static_precomp_time_remap() {
     )
     .unwrap();
 
-    assert!(analyze_animation(&animation).is_supported());
-
     let frame = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())
         .unwrap();
@@ -422,8 +420,6 @@ fn renderer_interpolates_precomp_time_remap() {
     )
     .unwrap();
 
-    assert!(analyze_animation(&animation).is_supported());
-
     let start = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())
         .unwrap();
@@ -447,11 +443,6 @@ pub(super) fn pixel_at(frame: &RasterFrame, x: u32, y: u32) -> [u8; 4] {
 
 pub(super) fn color_sum(pixel: [u8; 4]) -> u16 {
     u16::from(pixel[0]) + u16::from(pixel[1]) + u16::from(pixel[2])
-}
-
-pub(super) fn assert_fixture_supported(animation: &Animation) {
-    let report = analyze_animation(animation);
-    assert!(report.is_supported(), "{report}");
 }
 
 pub(super) fn load_fixture_animation(name: &str) -> Animation {

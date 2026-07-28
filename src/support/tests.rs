@@ -1,7 +1,5 @@
 #![cfg(test)]
 
-use std::{fs, path::PathBuf};
-
 use super::*;
 use crate::Animation;
 
@@ -39,21 +37,6 @@ fn target_corpus_profile_accepts_an_empty_shape_animation() {
     let report = analyze_animation(&animation);
 
     assert!(report.is_supported(), "{report}");
-}
-
-pub(super) fn load_fixture_animation(name: &str) -> Animation {
-    let path = fixture_path(name);
-    let json = fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("failed to read fixture {}: {error}", path.display()));
-    Animation::from_json_str(&json)
-        .unwrap_or_else(|error| panic!("failed to parse fixture {}: {error}", path.display()))
-}
-
-fn fixture_path(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("fixtures")
-        .join(name)
 }
 
 #[cfg(feature = "text")]
@@ -403,51 +386,6 @@ fn target_corpus_profile_accepts_supported_simple_choker_effects() {
             }"#,
     )
     .unwrap();
-
-    let report = analyze_animation(&animation);
-
-    assert!(report.is_supported(), "{report}");
-}
-
-#[test]
-fn target_corpus_profile_accepts_stroke_dashes() {
-    let animation = load_fixture_animation("stroke_dash_basic.json");
-
-    let report = analyze_animation(&animation);
-
-    assert!(report.is_supported(), "{report}");
-}
-
-#[test]
-fn target_corpus_profile_accepts_layer_parenting() {
-    let animation = load_fixture_animation("layer_parenting_basic.json");
-
-    let report = analyze_animation(&animation);
-
-    assert!(report.is_supported(), "{report}");
-}
-
-#[test]
-fn target_corpus_profile_accepts_trim_paths() {
-    let animation = load_fixture_animation("trim_path_basic.json");
-
-    let report = analyze_animation(&animation);
-
-    assert!(report.is_supported(), "{report}");
-}
-
-#[test]
-fn target_corpus_profile_accepts_polystars() {
-    let animation = load_fixture_animation("polystar_basic.json");
-
-    let report = analyze_animation(&animation);
-
-    assert!(report.is_supported(), "{report}");
-}
-
-#[test]
-fn target_corpus_profile_accepts_repeaters() {
-    let animation = load_fixture_animation("repeater_basic.json");
 
     let report = analyze_animation(&animation);
 

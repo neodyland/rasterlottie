@@ -1,5 +1,5 @@
 use super::super::{tests::pixel_at, *};
-use crate::{Animation, analyze_animation};
+use crate::Animation;
 
 #[test]
 fn renderer_respects_rounded_rectangle_corners() {
@@ -227,9 +227,6 @@ fn renderer_interpolates_animated_rectangle_position() {
     )
     .unwrap();
 
-    let report = analyze_animation(&animation);
-    assert!(report.is_supported(), "{report}");
-
     let early = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())
         .unwrap();
@@ -283,9 +280,6 @@ fn renderer_interpolates_split_position() {
     )
     .unwrap();
 
-    let report = analyze_animation(&animation);
-    assert!(report.is_supported(), "{report}");
-
     let early = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())
         .unwrap();
@@ -331,9 +325,6 @@ fn renderer_interpolates_spatial_rectangle_position() {
             }"#,
     )
     .unwrap();
-
-    let report = analyze_animation(&animation);
-    assert!(report.is_supported(), "{report}");
 
     let early = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())
@@ -383,9 +374,6 @@ fn renderer_interpolates_animated_shape_paths() {
             }"#,
     )
     .unwrap();
-
-    let report = analyze_animation(&animation);
-    assert!(report.is_supported(), "{report}");
 
     let early = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())

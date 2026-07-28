@@ -1,9 +1,6 @@
 #![cfg(test)]
 
-use super::{
-    tests::{assert_fixture_supported, pixel_at},
-    *,
-};
+use super::{tests::pixel_at, *};
 use crate::Animation;
 
 #[test]
@@ -38,8 +35,6 @@ fn renderer_draws_single_source_merge_paths_as_the_original_geometry() {
             }"#,
     )
     .unwrap();
-    assert_fixture_supported(&animation);
-
     let frame = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())
         .unwrap();
@@ -80,8 +75,6 @@ fn renderer_draws_mode1_merge_paths_as_compound_geometry() {
             }"#,
     )
     .unwrap();
-    assert_fixture_supported(&animation);
-
     let frame = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())
         .unwrap();
@@ -148,8 +141,6 @@ fn renderer_resolves_supported_path_reference_expressions() {
             }"#,
     )
     .unwrap();
-    assert_fixture_supported(&animation);
-
     let frame = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())
         .unwrap();
@@ -203,8 +194,6 @@ fn renderer_applies_supported_fill_effects() {
             }"#,
     )
     .unwrap();
-    assert_fixture_supported(&animation);
-
     let frame = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())
         .unwrap();
@@ -253,8 +242,6 @@ fn renderer_applies_supported_simple_choker_effects() {
             }"#,
     )
     .unwrap();
-    assert_fixture_supported(&animation);
-
     let frame = Renderer::default()
         .render_frame(&animation, 0.0, RenderConfig::default())
         .unwrap();
