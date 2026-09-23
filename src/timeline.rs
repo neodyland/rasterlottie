@@ -277,7 +277,7 @@ pub fn parse_numeric_keyframes(value: &AnimatedValue) -> Option<Vec<NumericKeyfr
         keyframes.push(NumericKeyframe {
             time: object.get("t")?.as_f64()? as f32,
             start: start.clone(),
-            end: end.clone(),
+            end,
             spatial: parse_spatial_tangent(object, &start).ok()?,
             hold: object.get("h").and_then(value_as_bool).unwrap_or(false),
             out_easing: object

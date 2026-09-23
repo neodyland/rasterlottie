@@ -7,7 +7,6 @@ license = "MIT OR Apache-2.0"
 publish = ["crates-io"]
 readme = "README.md"
 documentation = "https://docs.rs/rasterlottie"
-homepage = "https://github.com/neodyland/rasterlottie"
 repository = "https://github.com/neodyland/rasterlottie"
 keywords = ["lottie", "renderer", "rasterizer", "gif", "animation"]
 categories = ["graphics", "multimedia::images"]
