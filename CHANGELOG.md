@@ -4,9 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and the project follows Semantic Versioning.
 
+## [0.2.3]
+
+### Changed
+
+- Refreshed the dependency lockfile to the latest MSRV-compatible releases.
+- Adopted the current nightly Clippy lints (`suboptimal_flops`, `assert_is_empty`) and registered the new `test_binder_constraints` item kind in the source ordering configuration.
+
 ## [0.2.2]
 
-## Changed
+### Changed
 
 - Dependency upgrades.
 
