@@ -78,8 +78,8 @@ fn build_rect_path(
     let width = size[0].abs();
     let height = size[1].abs();
     let rect = Rect::from_xywh(
-        center[0] - width * 0.5,
-        center[1] - height * 0.5,
+        width.mul_add(-0.5, center[0]),
+        height.mul_add(-0.5, center[1]),
         width,
         height,
     )?;
@@ -109,8 +109,8 @@ fn build_ellipse_path(
     let width = size[0].abs();
     let height = size[1].abs();
     let rect = Rect::from_xywh(
-        center[0] - width * 0.5,
-        center[1] - height * 0.5,
+        width.mul_add(-0.5, center[0]),
+        height.mul_add(-0.5, center[1]),
         width,
         height,
     )?;
@@ -532,7 +532,7 @@ fn build_star_path(spec: &StarPathSpec) -> Option<Path> {
             out_tangent: [-normal[0] * tangent, -normal[1] * tangent],
         });
         long_flag = !long_flag;
-        current_angle += angle * spec.direction;
+        current_angle = angle.mul_add(spec.direction, current_angle);
     }
 
     build_bezier_path(&BezierPath {
@@ -569,7 +569,7 @@ fn build_polygon_path(
             in_tangent: [normal[0] * tangent, normal[1] * tangent],
             out_tangent: [-normal[0] * tangent, -normal[1] * tangent],
         });
-        current_angle += angle * direction;
+        current_angle = angle.mul_add(direction, current_angle);
     }
 
     build_bezier_path(&BezierPath {

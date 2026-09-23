@@ -12,6 +12,7 @@ module-item-order-groupings = [
   ["types", ["ty_alias", "enum", "struct", "union", "trait", "trait_alias"]],
   ["impls", ["impl"]],
   ["fns", ["fn"]],
+  ["test_binders", ["test_binder_constraints"]],
 ]
 module-items-ordered-within-groupings = "none"
 source-item-ordering = ["module"]

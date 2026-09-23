@@ -326,7 +326,7 @@ fn renderer_encodes_a_gif_for_animated_content() {
 
     assert_eq!(frames.len(), 10);
     assert!(frames.iter().all(|frame| frame.delay == 10));
-    assert!(!raw_frames.is_empty());
+    assert_ne!(raw_frames, [] as [RawGifFrame; 0]);
 
     let first = &frames[0].raster;
     let last = &frames[frames.len() - 1].raster;
@@ -354,7 +354,7 @@ fn renderer_uses_background_disposal_for_gif_frames() {
     let (_canvas_width, _canvas_height, frames) = decode_gif_raw_frames(&bytes);
     let disposals: Vec<_> = frames.iter().map(|frame| frame.dispose).collect();
 
-    assert!(!disposals.is_empty());
+    assert_ne!(disposals, [] as [::gif::DisposalMethod; 0]);
     assert!(disposals.contains(&::gif::DisposalMethod::Background));
 }
 
