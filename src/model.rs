@@ -27,6 +27,18 @@ impl Animation {
     ///
     /// Returns an error when `dotlottie` is not a valid `.lottie` archive or
     /// when the selected embedded Lottie JSON cannot be parsed.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use rasterlottie::Animation;
+    ///
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let dotlottie = std::fs::read("example.lottie")?;
+    ///     let animation = Animation::from_dotlottie_bytes(&dotlottie)?;
+    ///     Ok(())
+    /// }
+    /// ```
     #[cfg(feature = "dotlottie")]
     #[cfg_attr(docsrs, doc(cfg(feature = "dotlottie")))]
     pub fn from_dotlottie_bytes(dotlottie: &[u8]) -> Result<Self, RasterlottieError> {

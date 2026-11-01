@@ -37,39 +37,37 @@ rasterlottie = { version = "<ver>", default-features = false }
 ## Basic usage
 
 ```rust
-use rasterlottie::{Animation, RenderConfig, Renderer};
+use rasterlottie::{Animation, RasterlottieError, RenderConfig, Renderer};
 
-let animation = Animation::from_json_str(
-    r#"{
-        "v":"5.7.6",
-        "fr":30,
-        "ip":0,
-        "op":30,
-        "w":64,
-        "h":64,
-        "layers":[]
-    }"#,
-)?;
+fn main() -> Result<(), RasterlottieError> {
+    let animation = Animation::from_json_str(
+        r#"{
+            "v":"5.7.6",
+            "fr":30,
+            "ip":0,
+            "op":30,
+            "w":64,
+            "h":64,
+            "layers":[]
+        }"#,
+    )?;
 
-let frame = Renderer::default().render_frame(&animation, 0.0, RenderConfig::default())?;
-assert_eq!((frame.width, frame.height), (64, 64));
-# Ok::<(), rasterlottie::RasterlottieError>(())
+    let frame = Renderer::default().render_frame(&animation, 0.0, RenderConfig::default())?;
+    assert_eq!((frame.width, frame.height), (64, 64));
+    Ok(())
+}
 ```
 
 With `dotlottie` enabled, you can also load a packaged archive:
 
-```rust,no_run
-# #[cfg(feature = "dotlottie")]
-# fn main() -> Result<(), Box<dyn std::error::Error>> {
+```rust,ignore
 use rasterlottie::Animation;
 
-let dotlottie = std::fs::read("example.lottie")?;
-let animation = Animation::from_dotlottie_bytes(&dotlottie)?;
-# let _animation = animation;
-# Ok(())
-# }
-# #[cfg(not(feature = "dotlottie"))]
-# fn main() {}
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let dotlottie = std::fs::read("example.lottie")?;
+    let animation = Animation::from_dotlottie_bytes(&dotlottie)?;
+    Ok(())
+}
 ```
 
 ## Current status

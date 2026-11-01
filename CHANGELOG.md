@@ -12,6 +12,10 @@ The format is based on Keep a Changelog, and the project follows Semantic Versio
 - Refreshed the dependency lockfile to the latest MSRV-compatible releases.
 - Adopted the current nightly Clippy `unnecessary_lazy_evaluations` suggestion.
 
+### Fixed
+
+- README examples no longer show rustdoc hidden lines (`# ...`) on GitHub and crates.io; the `.lottie` loading example is now doc-tested on `Animation::from_dotlottie_bytes` instead.
+
 ## [0.2.4]
 
 ### Changed
