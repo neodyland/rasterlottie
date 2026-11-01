@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and the project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking:** Upgraded the optional `zip` dependency (used by the `dotlottie` feature) from 8 to 9. `RasterlottieError::DotLottieArchive` now wraps `zip` 9's `ZipError`.
+- Refreshed the dependency lockfile to the latest MSRV-compatible releases.
+- Adopted the current nightly Clippy `unnecessary_lazy_evaluations` suggestion.
+
 ## [0.2.4]
 
 ### Changed

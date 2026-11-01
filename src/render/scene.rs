@@ -157,13 +157,12 @@ pub(super) fn map_layer_frame(animation: &Animation, frame: f32, layer: &Layer) 
         return layer_time;
     };
 
-    let remapped_seconds = sample_scalar(time_remap, layer_time).unwrap_or_else(|| {
-        if animation.frame_rate <= f32::EPSILON {
+    let remapped_seconds =
+        sample_scalar(time_remap, layer_time).unwrap_or(if animation.frame_rate <= f32::EPSILON {
             0.0
         } else {
             layer_time / animation.frame_rate
-        }
-    });
+        });
 
     remapped_seconds * animation.frame_rate.max(1.0)
 }
